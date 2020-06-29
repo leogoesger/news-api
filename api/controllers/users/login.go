@@ -1,4 +1,4 @@
-package controllers
+package users
 
 import (
 	"encoding/json"
@@ -11,9 +11,8 @@ import (
 	"github.com/leogoesger/news-api/db/models"
 	"golang.org/x/crypto/bcrypt"
 )
-
 // Login logic
-func (server *Server) Login(w http.ResponseWriter, r *http.Request) {
+func (userCtrl *Ctrl) Login(w http.ResponseWriter, r *http.Request) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
@@ -32,7 +31,7 @@ func (server *Server) Login(w http.ResponseWriter, r *http.Request) {
 		responses.ERROR(w, http.StatusUnprocessableEntity, err)
 		return
 	}
-	token, err := server.SignIn(user.Email, user.Password)
+	token, err := userCtrl.SignIn(user.Email, user.Password)
 	if err != nil {
 		formattedError := formaterror.FormatError(err.Error())
 		responses.ERROR(w, http.StatusUnprocessableEntity, formattedError)
@@ -43,14 +42,15 @@ func (server *Server) Login(w http.ResponseWriter, r *http.Request) {
 	responses.JSON(w, http.StatusOK, token)
 }
 
+
 // SignIn sign in user
-func (server *Server) SignIn(email, password string) (string, error) {
+func (userCtrl *Ctrl) SignIn(email, password string) (string, error) {
 
 	var err error
 
 	user := models.User{}
 
-	err = server.DB.Debug().Model(models.User{}).Where("email = ?", email).Take(&user).Error
+	err = userCtrl.DB.Debug().Model(models.User{}).Where("email = ?", email).Take(&user).Error
 	if err != nil {
 		return "", err
 	}

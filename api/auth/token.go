@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -25,7 +24,7 @@ func CreateToken(userID uint32) (string, error) {
 }
 
 // TokenValid create the token
-func TokenValid(r *http.Request) error {
+func TokenValid(r *http.Request) (*http.Request, error) {
 	tokenString := ExtractToken(r)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -34,12 +33,19 @@ func TokenValid(r *http.Request) error {
 		return []byte(os.Getenv("API_SECRET")), nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		Pretty(claims)
+		tokenObj, err := Pretty(claims)
+		if err != nil {
+			return nil, err
+		}
+		r2 := new(http.Request)
+		*r2 = *r
+		r2.Header.Set("user-id", strconv.Itoa(tokenObj.UserID))
+		return r2, nil
 	}
-	return nil
+	return nil, nil
 }
 
 // ExtractToken get token
@@ -49,9 +55,11 @@ func ExtractToken(r *http.Request) string {
 	if token != "" {
 		return token
 	}
-	bearerToken := r.Header.Get("Authorization")
-	if len(strings.Split(bearerToken, " ")) == 2 {
-		return strings.Split(bearerToken, " ")[1]
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == "news-token"{
+			return cookie.Value
+		}
+		break
 	}
 	return ""
 }
@@ -80,13 +88,24 @@ func ExtractTokenID(r *http.Request) (uint32, error) {
 	return 0, nil
 }
 
+// Token struct
+type Token struct {
+	authorized bool
+	exp int
+	UserID int `json:"user_id"`
+}
 //Pretty display the claims licely in the terminal
-func Pretty(data interface{}) {
+func Pretty(data interface{}) (Token, error) {
+	var obj Token
 	b, err := json.MarshalIndent(data, "", " ")
 	if err != nil {
 		log.Println(err)
-		return
+		return obj, err
 	}
 
-	fmt.Println(string(b))
+	if err := json.Unmarshal(b, &obj); err != nil {
+		panic(err)
+	}
+
+	return obj, nil
 }
